@@ -1,0 +1,1599 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEMESIS — The AI That Learns You</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Bebas+Neue&family=Rajdhani:wght@300;400;600;700&display=swap');
+
+  :root {
+    --neon: #00ffe7;
+    --red: #ff2d55;
+    --warn: #ffcc00;
+    --bg: #050a0f;
+    --panel: rgba(0,255,231,0.05);
+    --border: rgba(0,255,231,0.2);
+    --dark: #0a1520;
+    --mid: #0d1f2d;
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    background: var(--bg);
+    color: #e0f7f4;
+    font-family: 'Rajdhani', sans-serif;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  /* ── CANVAS ── */
+  #gameCanvas {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    cursor: crosshair;
+  }
+
+  /* ── HUD OVERLAY ── */
+  #hud {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  /* TOP BAR */
+  #topBar {
+    position: absolute;
+    top: 0; left: 0; right: 230px;
+    display: flex;
+    justify-content: flex-start;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 14px 20px 0;
+  }
+
+  .hud-panel {
+    background: linear-gradient(135deg, rgba(0,20,30,0.92), rgba(0,10,20,0.85));
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 8px 14px;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 0 20px rgba(0,255,231,0.08), inset 0 1px 0 rgba(0,255,231,0.1);
+  }
+
+  .hud-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 3px;
+    color: var(--neon);
+    opacity: 0.6;
+    text-transform: uppercase;
+    margin-bottom: 2px;
+  }
+
+  .hud-value {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 28px;
+    line-height: 1;
+    letter-spacing: 2px;
+  }
+
+  #scoreDisplay .hud-value { color: var(--neon); }
+  #waveDisplay .hud-value { color: var(--warn); text-align:center; }
+  #killDisplay .hud-value { color: var(--red); text-align:right; }
+
+  /* HEALTH BAR */
+  #healthArea {
+    position: absolute;
+    bottom: 20px; left: 20px;
+    width: 220px;
+  }
+
+  .bar-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 3px;
+    color: var(--neon);
+    opacity: 0.7;
+    margin-bottom: 5px;
+  }
+
+  .bar-track {
+    height: 8px;
+    background: rgba(255,255,255,0.07);
+    border-radius: 2px;
+    overflow: hidden;
+    border: 1px solid rgba(0,255,231,0.15);
+    position: relative;
+  }
+
+  #healthFill {
+    height: 100%;
+    width: 100%;
+    background: linear-gradient(90deg, #00ffe7, #00bfad);
+    border-radius: 2px;
+    transition: width 0.2s ease, background 0.5s;
+    box-shadow: 0 0 8px rgba(0,255,231,0.5);
+  }
+
+  #healthFill.low { background: linear-gradient(90deg, #ff2d55, #ff6b35); box-shadow: 0 0 8px rgba(255,45,85,0.6); }
+
+  .bar-value {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: var(--neon);
+    margin-top: 3px;
+  }
+
+  /* AMMO */
+  #ammoArea {
+    position: absolute;
+    bottom: 150px; right: 20px;
+    text-align: right;
+  }
+
+  #ammoCount {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 52px;
+    line-height: 1;
+    color: #fff;
+    letter-spacing: 2px;
+    text-shadow: 0 0 20px rgba(0,255,231,0.4);
+  }
+
+  #ammoMax {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+    color: rgba(0,255,231,0.5);
+    letter-spacing: 2px;
+  }
+
+  #reloadMsg {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 16px;
+    color: var(--warn);
+    letter-spacing: 3px;
+    animation: blink 0.4s infinite;
+    display: none;
+  }
+
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+
+  /* CROSSHAIR */
+  #crosshair {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%,-50%);
+    width: 30px; height: 30px;
+    pointer-events: none;
+  }
+
+  #crosshair::before, #crosshair::after {
+    content: '';
+    position: absolute;
+    background: rgba(0,255,231,0.8);
+    border-radius: 1px;
+  }
+
+  #crosshair::before { width: 2px; height: 12px; top: 0; left: 50%; transform: translateX(-50%); box-shadow: 0 18px 0 rgba(0,255,231,0.8); }
+  #crosshair::after { height: 2px; width: 12px; left: 0; top: 50%; transform: translateY(-50%); box-shadow: 18px 0 0 rgba(0,255,231,0.8); }
+
+  #crosshairDot {
+    position: absolute;
+    top: 50%; left: 50%;
+    width: 3px; height: 3px;
+    background: var(--red);
+    border-radius: 50%;
+    transform: translate(-50%,-50%);
+    box-shadow: 0 0 4px var(--red);
+  }
+
+  /* AI PROFILE PANEL */
+  #aiPanel {
+    position: absolute;
+    top: 14px; right: 20px;
+    width: 200px;
+  }
+
+  #aiPanel .hud-panel { padding: 10px 12px; }
+
+  .ai-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .ai-icon {
+    width: 28px; height: 28px;
+    border: 1px solid var(--red);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    box-shadow: 0 0 8px rgba(255,45,85,0.4);
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse { 0%,100%{box-shadow:0 0 8px rgba(255,45,85,0.4)} 50%{box-shadow:0 0 16px rgba(255,45,85,0.8)} }
+
+  .ai-title {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--red);
+  }
+
+  .ai-mode-badge {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 13px;
+    letter-spacing: 1px;
+  }
+
+  .trait-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin: 5px 0;
+    font-size: 11px;
+  }
+
+  .trait-name {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 1px;
+    color: rgba(224,247,244,0.5);
+    text-transform: uppercase;
+  }
+
+  .trait-bar-wrap { width: 80px; }
+
+  .trait-bar {
+    height: 4px;
+    background: rgba(255,255,255,0.07);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .trait-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 1s ease;
+  }
+
+  .tf-flank { background: linear-gradient(90deg, #ff2d55, #ff6b35); }
+  .tf-trap  { background: linear-gradient(90deg, #ffcc00, #ff9500); }
+  .tf-aggr  { background: linear-gradient(90deg, #00ffe7, #00b3ff); }
+
+  /* TACTIC FEED */
+  #tacticFeed {
+    position: absolute;
+    top: 110px; left: 20px;
+    width: 260px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .tactic-msg {
+    background: linear-gradient(135deg, rgba(0,20,30,0.92), rgba(0,10,20,0.85));
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--neon);
+    border-radius: 0 4px 4px 0;
+    padding: 6px 10px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 1px;
+    color: var(--neon);
+    backdrop-filter: blur(6px);
+    animation: slideIn 0.3s ease;
+    opacity: 0;
+  }
+
+  .tactic-msg.warn { border-left-color: var(--red); color: var(--red); }
+  .tactic-msg.alert { border-left-color: var(--warn); color: var(--warn); }
+
+  @keyframes slideIn {
+    from { transform: translateX(-20px); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+
+  /* BOTTOM CENTER — weapon */
+  #weaponInfo {
+    position: absolute;
+    bottom: 20px; left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  #weaponName {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 18px;
+    letter-spacing: 4px;
+    color: rgba(0,255,231,0.6);
+  }
+
+  /* HIT MARKER */
+  #hitMarker {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%,-50%);
+    width: 20px; height: 20px;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  #hitMarker::before, #hitMarker::after {
+    content: '';
+    position: absolute;
+    background: var(--red);
+  }
+
+  #hitMarker::before { width: 2px; height: 20px; left: 9px; box-shadow: 0 0 4px var(--red); }
+  #hitMarker::after  { height: 2px; width: 20px; top: 9px; box-shadow: 0 0 4px var(--red); }
+
+  #hitMarker.show { animation: hitFlash 0.15s ease forwards; }
+
+  @keyframes hitFlash { 0%{opacity:1} 100%{opacity:0} }
+
+  /* DAMAGE VIGNETTE */
+  #damageVignette {
+    position: absolute;
+    inset: 0;
+    border-radius: 0;
+    pointer-events: none;
+    opacity: 0;
+    background: radial-gradient(ellipse at center, transparent 50%, rgba(255,45,85,0.5) 100%);
+    transition: opacity 0.1s;
+  }
+
+  #damageVignette.show { animation: dmgFlash 0.4s ease forwards; }
+
+  @keyframes dmgFlash { 0%{opacity:1} 100%{opacity:0} }
+
+  /* MINIMAP */
+  #minimap {
+    position: absolute;
+    bottom: 20px;
+    right: 20px;
+    width: 150px; height: 120px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    background: rgba(0,10,20,0.85);
+    overflow: hidden;
+  }
+
+  #minimap canvas { display:block; width: 150px; height: 120px; }
+
+  .minimap-label {
+    position: absolute;
+    top: 3px; left: 50%;
+    transform: translateX(-50%);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 7px;
+    letter-spacing: 2px;
+    color: rgba(0,255,231,0.4);
+    pointer-events: none;
+    white-space: nowrap;
+  }
+
+  /* SCREENS */
+  .screen {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: radial-gradient(ellipse at center, #0a1520 0%, #050a0f 100%);
+    z-index: 100;
+  }
+
+  .screen-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 80px;
+    letter-spacing: 10px;
+    color: var(--neon);
+    text-shadow: 0 0 40px rgba(0,255,231,0.6), 0 0 80px rgba(0,255,231,0.2);
+    line-height: 1;
+    text-align: center;
+  }
+
+  .screen-sub {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 5px;
+    color: rgba(0,255,231,0.5);
+    margin: 10px 0 40px;
+    text-align: center;
+  }
+
+  .screen-desc {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 15px;
+    color: rgba(224,247,244,0.5);
+    text-align: center;
+    max-width: 480px;
+    line-height: 1.7;
+    margin-bottom: 50px;
+  }
+
+  .btn {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 18px;
+    letter-spacing: 5px;
+    padding: 14px 50px;
+    border: 1px solid var(--neon);
+    background: transparent;
+    color: var(--neon);
+    cursor: pointer;
+    border-radius: 2px;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.2s;
+    pointer-events: all;
+  }
+
+  .btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--neon);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.2s;
+    z-index: -1;
+  }
+
+  .btn:hover { color: #050a0f; box-shadow: 0 0 30px rgba(0,255,231,0.4); }
+  .btn:hover::before { transform: scaleX(1); }
+
+  .controls-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 30px;
+    margin-bottom: 40px;
+  }
+
+  .ctrl-row {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+  }
+
+  .key {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    background: rgba(0,255,231,0.1);
+    border: 1px solid var(--border);
+    padding: 3px 8px;
+    border-radius: 2px;
+    color: var(--neon);
+    min-width: 40px;
+    text-align: center;
+  }
+
+  .ctrl-desc {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 13px;
+    color: rgba(224,247,244,0.5);
+    letter-spacing: 1px;
+  }
+
+  .scan-line {
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,255,231,0.01) 2px, rgba(0,255,231,0.01) 4px);
+    pointer-events: none;
+    z-index: 200;
+  }
+
+  #gameOver { display: none; }
+  #pauseScreen { display: none; }
+
+  .go-stats {
+    display: flex;
+    gap: 40px;
+    margin: 30px 0 40px;
+  }
+
+  .go-stat {
+    text-align: center;
+  }
+
+  .go-stat-val {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 42px;
+    line-height: 1;
+  }
+
+  .go-stat-lbl {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 3px;
+    opacity: 0.5;
+    margin-top: 4px;
+  }
+
+  #aiThreatLevel {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 14px;
+    letter-spacing: 3px;
+    padding: 4px 12px;
+    border-radius: 2px;
+    margin-bottom: 4px;
+  }
+
+  .threat-low  { color: #00ffe7; border: 1px solid rgba(0,255,231,0.3); }
+  .threat-med  { color: var(--warn); border: 1px solid rgba(255,204,0,0.3); }
+  .threat-high { color: var(--red); border: 1px solid rgba(255,45,85,0.3); animation: pulse 1s infinite; }
+
+  /* Scan effect on start */
+  @keyframes scanDown {
+    0% { top: -4px; }
+    100% { top: 100%; }
+  }
+
+  .scan-sweep {
+    position: absolute;
+    left: 0; right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, transparent, var(--neon), transparent);
+    opacity: 0.15;
+    animation: scanDown 3s linear infinite;
+  }
+</style>
+</head>
+<body>
+
+<!-- Scan lines overlay -->
+<div class="scan-line"></div>
+<div class="scan-sweep"></div>
+
+<!-- GAME CANVAS -->
+<canvas id="gameCanvas"></canvas>
+<canvas id="minimapCanvas" style="display:none"></canvas>
+
+<!-- HUD -->
+<div id="hud">
+  <!-- TOP BAR -->
+  <div id="topBar">
+    <div class="hud-panel" id="scoreDisplay">
+      <div class="hud-label">Score</div>
+      <div class="hud-value" id="scoreVal">0</div>
+    </div>
+    <div class="hud-panel" id="waveDisplay">
+      <div class="hud-label" style="text-align:center">Wave</div>
+      <div class="hud-value" id="waveVal">1</div>
+    </div>
+    <div class="hud-panel" id="killDisplay">
+      <div class="hud-label" style="text-align:right">Kills</div>
+      <div class="hud-value" id="killVal">0</div>
+    </div>
+  </div>
+
+  <!-- AI PANEL -->
+  <div id="aiPanel">
+    <div class="hud-panel">
+      <div class="ai-header">
+        <div class="ai-icon">🧠</div>
+        <div>
+          <div class="ai-title">NEMESIS AI</div>
+          <div id="aiThreatLevel" class="threat-low">THREAT: LOW</div>
+        </div>
+      </div>
+      <div id="aiModeDisplay" class="ai-mode-badge" style="color:var(--neon); font-size:11px; margin-bottom:8px; font-family:'Share Tech Mono',monospace; letter-spacing:1px;">MODE: LEARNING</div>
+      <div class="trait-row">
+        <span class="trait-name">FLANKING</span>
+        <div class="trait-bar-wrap"><div class="trait-bar"><div id="flankBar" class="trait-fill tf-flank" style="width:5%"></div></div></div>
+      </div>
+      <div class="trait-row">
+        <span class="trait-name">TRAPPING</span>
+        <div class="trait-bar-wrap"><div class="trait-bar"><div id="trapBar" class="trait-fill tf-trap" style="width:5%"></div></div></div>
+      </div>
+      <div class="trait-row">
+        <span class="trait-name">AGGRESSION</span>
+        <div class="trait-bar-wrap"><div class="trait-bar"><div id="aggrBar" class="trait-fill tf-aggr" style="width:20%"></div></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TACTIC FEED -->
+  <div id="tacticFeed"></div>
+
+  <!-- CROSSHAIR -->
+  <div id="crosshair"><div id="crosshairDot"></div></div>
+
+  <!-- HEALTH -->
+  <div id="healthArea">
+    <div class="bar-label">◈ HEALTH</div>
+    <div class="bar-track"><div id="healthFill"></div></div>
+    <div class="bar-value"><span id="healthVal">100</span> / 100</div>
+  </div>
+
+  <!-- AMMO -->
+  <div id="ammoArea">
+    <div class="hud-label" style="text-align:right">◈ AMMO</div>
+    <div id="ammoCount">30</div>
+    <div id="ammoMax">/ 30 · MAG</div>
+    <div id="reloadMsg">RELOADING...</div>
+  </div>
+
+  <!-- WEAPON NAME -->
+  <div id="weaponInfo">
+    <div id="weaponName">◈ M4A1 CARBINE ◈</div>
+  </div>
+
+  <!-- MINIMAP -->
+  <div id="minimap">
+    <canvas id="mmCanvas" width="150" height="120"></canvas>
+    <div class="minimap-label">TACTICAL MAP</div>
+  </div>
+
+  <!-- HIT MARKER -->
+  <div id="hitMarker"></div>
+  <div id="damageVignette"></div>
+</div>
+
+<!-- START SCREEN -->
+<div class="screen" id="startScreen">
+  <div class="screen-title">NEMESIS</div>
+  <div class="screen-sub">THE AI THAT LEARNS YOU</div>
+  <div class="screen-desc">
+    An adaptive AI studies your every move. Camp — it flanks.<br>
+    Rush — it sets traps. Repeat — it counters.<br>
+    <strong style="color:var(--neon)">You must outthink an evolving opponent.</strong>
+  </div>
+  <div class="controls-grid">
+    <div class="ctrl-row"><span class="key">W A S D</span><span class="ctrl-desc">Move</span></div>
+    <div class="ctrl-row"><span class="key">MOUSE</span><span class="ctrl-desc">Aim</span></div>
+    <div class="ctrl-row"><span class="key">CLICK</span><span class="ctrl-desc">Shoot</span></div>
+    <div class="ctrl-row"><span class="key">R</span><span class="ctrl-desc">Reload</span></div>
+    <div class="ctrl-row"><span class="key">SHIFT</span><span class="ctrl-desc">Sprint</span></div>
+    <div class="ctrl-row"><span class="key">ESC</span><span class="ctrl-desc">Pause</span></div>
+  </div>
+  <button class="btn" onclick="startGame()">ENGAGE</button>
+</div>
+
+<!-- GAME OVER -->
+<div class="screen" id="gameOver">
+  <div class="screen-title" style="color:var(--red); text-shadow:0 0 40px rgba(255,45,85,0.6)">K.I.A.</div>
+  <div class="screen-sub">NEMESIS HAS ADAPTED</div>
+  <div class="go-stats">
+    <div class="go-stat"><div class="go-stat-val" id="goScore" style="color:var(--neon)">0</div><div class="go-stat-lbl">SCORE</div></div>
+    <div class="go-stat"><div class="go-stat-val" id="goKills" style="color:var(--red)">0</div><div class="go-stat-lbl">KILLS</div></div>
+    <div class="go-stat"><div class="go-stat-val" id="goWave" style="color:var(--warn)">1</div><div class="go-stat-lbl">WAVE</div></div>
+  </div>
+  <div id="goAiAnalysis" class="screen-desc" style="margin-bottom:30px"></div>
+  <button class="btn" onclick="restartGame()">RETRY</button>
+</div>
+
+<!-- PAUSE -->
+<div class="screen" id="pauseScreen">
+  <div class="screen-title" style="font-size:60px">PAUSED</div>
+  <div class="screen-sub" style="margin-bottom:30px">NEMESIS IS WAITING...</div>
+  <button class="btn" onclick="togglePause()">RESUME</button>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════
+//  NEMESIS FPS — ADAPTIVE AI ENGINE
+// ═══════════════════════════════════════════════
+
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const mm = document.getElementById('mmCanvas');
+const mmCtx = mm.getContext('2d');
+
+// Resize
+function resize() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// ── STATE ─────────────────────────────────────
+let gameState = 'menu'; // menu | playing | paused | gameover
+let score = 0, kills = 0, wave = 1;
+let frameId = null;
+let lastTime = 0;
+let waveSpawning = false; // prevents duplicate wave spawns
+
+// ── PLAYER ────────────────────────────────────
+const player = {
+  x: 400, y: 400,
+  size: 14,
+  speed: 180,
+  health: 100,
+  maxHealth: 100,
+  angle: 0,
+  ammo: 30,
+  maxAmmo: 30,
+  reloading: false,
+  reloadTimer: 0,
+  reloadTime: 2.0,
+  // Position history for camping detection
+  posHistory: [],
+  posTimer: 0,
+  posInterval: 1.0,
+  // Shot history for pattern detection
+  shotHistory: [],
+  // Sprint
+  sprinting: false,
+};
+
+// Camera: player is ALWAYS at screen center — no clamping
+function getCam() {
+  return { x: player.x - canvas.width/2, y: player.y - canvas.height/2 };
+}
+
+// ── INPUT ─────────────────────────────────────
+const keys = {};
+let mouse = { x: canvas.width/2, y: canvas.height/2, down: false };
+
+window.addEventListener('keydown', e => { keys[e.code] = true; if(e.code==='Escape' && gameState==='playing') togglePause(); });
+window.addEventListener('keyup', e => { keys[e.code] = false; });
+canvas.addEventListener('mousemove', e => { mouse.x = e.clientX; mouse.y = e.clientY; });
+canvas.addEventListener('mousedown', e => { if(e.button===0) { mouse.down = true; if(gameState==='playing') shoot(); }});
+canvas.addEventListener('mouseup', e => { if(e.button===0) mouse.down = false; });
+
+// ── MAP ───────────────────────────────────────
+const MAP_W = 1600, MAP_H = 1200;
+
+const walls = [];
+const cover = [];
+
+function buildMap() {
+  walls.length = 0;
+  cover.length = 0;
+  // Outer walls
+  walls.push(
+    {x:0, y:0, w:MAP_W, h:20},
+    {x:0, y:MAP_H-20, w:MAP_W, h:20},
+    {x:0, y:0, w:20, h:MAP_H},
+    {x:MAP_W-20, y:0, w:20, h:MAP_H}
+  );
+  // Interior cover objects
+  const coverDefs = [
+    {x:200, y:200, w:80, h:30},
+    {x:400, y:150, w:30, h:80},
+    {x:600, y:250, w:100, h:20},
+    {x:300, y:400, w:20, h:100},
+    {x:700, y:400, w:80, h:80},
+    {x:900, y:200, w:30, h:120},
+    {x:1100, y:300, w:120, h:20},
+    {x:250, y:700, w:20, h:120},
+    {x:500, y:600, w:100, h:20},
+    {x:700, y:700, w:80, h:30},
+    {x:900, y:600, w:30, h:100},
+    {x:1100, y:700, w:120, h:20},
+    {x:350, y:900, w:80, h:30},
+    {x:600, y:900, w:20, h:80},
+    {x:800, y:950, w:100, h:20},
+    {x:1000, y:850, w:30, h:100},
+    {x:1200, y:500, w:80, h:80},
+    {x:450, y:450, w:60, h:20},
+    {x:1300, y:150, w:20, h:100},
+    {x:150, y:550, w:80, h:20},
+  ];
+  cover.push(...coverDefs);
+  walls.push(...coverDefs);
+}
+
+// ── BULLETS ───────────────────────────────────
+const bullets = [];
+const enemyBullets = [];
+const particles = [];
+const traps = [];
+
+function shoot() {
+  if(player.reloading || player.ammo <= 0) {
+    if(player.ammo <= 0 && !player.reloading) startReload();
+    return;
+  }
+  player.ammo--;
+  updateAmmoHUD();
+  const spread = 0.03;
+  const angle = player.angle + (Math.random()-0.5)*spread;
+  bullets.push({
+    x: player.x, y: player.y,
+    vx: Math.cos(angle)*700,
+    vy: Math.sin(angle)*700,
+    life: 1.2, trail: []
+  });
+  spawnParticles(player.x, player.y, '#fff', 3, 80, player.angle);
+  player.shotHistory.push({ x: player.x, y: player.y, t: Date.now() });
+  if(player.shotHistory.length > 50) player.shotHistory.shift();
+  ai.recordPlayerShot(player.x, player.y);
+}
+
+function startReload() {
+  if(player.reloading || player.ammo === player.maxAmmo) return;
+  player.reloading = true;
+  player.reloadTimer = 0;
+  document.getElementById('reloadMsg').style.display = 'block';
+}
+
+// ── PARTICLES ─────────────────────────────────
+function spawnParticles(x, y, color, count, speed, angle) {
+  for(let i=0; i<count; i++) {
+    const a = angle + (Math.random()-0.5)*1.5;
+    const s = speed * (0.5+Math.random()*0.5);
+    particles.push({ x, y, vx:Math.cos(a)*s, vy:Math.sin(a)*s, life:1, maxLife:0.3+Math.random()*0.3, color, size:2+Math.random()*2 });
+  }
+}
+
+// ── AI SYSTEM ─────────────────────────────────
+const ai = {
+  // Behavior tracking
+  playerCampScore: 0,      // High = camping detected
+  playerRushScore: 0,      // High = rushing detected
+  playerSpamScore: 0,      // High = same tactic spammed
+  lastPlayerTactic: null,
+  tacticRepeatCount: 0,
+
+  // Derived behavior weights
+  flankWeight: 0,
+  trapWeight: 0,
+  aggrWeight: 0.2,
+
+  // Learning thresholds
+  campThreshold: 15,
+  rushThreshold: 15,
+  spamThreshold: 5,
+
+  // Internal trackers
+  playerPosWindow: [],
+  lastShotZones: [],
+  analysisTimer: 0,
+  analysisInterval: 3.0,
+  alertCooldown: 0,
+
+  // Current detected pattern
+  detectedPattern: 'NONE',
+  counterTactic: 'NONE',
+
+  recordPlayerPos(x, y) {
+    this.playerPosWindow.push({x, y, t: Date.now()});
+    if(this.playerPosWindow.length > 20) this.playerPosWindow.shift();
+  },
+
+  recordPlayerShot(x, y) {
+    this.lastShotZones.push({x: Math.floor(x/200)*200, y: Math.floor(y/200)*200});
+    if(this.lastShotZones.length > 15) this.lastShotZones.shift();
+  },
+
+  analyzeMovement() {
+    if(this.playerPosWindow.length < 5) return;
+    const recent = this.playerPosWindow.slice(-10);
+    let totalDist = 0;
+    for(let i=1; i<recent.length; i++) {
+      const dx = recent[i].x - recent[i-1].x;
+      const dy = recent[i].y - recent[i-1].y;
+      totalDist += Math.sqrt(dx*dx+dy*dy);
+    }
+    const avgDist = totalDist / (recent.length-1);
+    if(avgDist < 20) { this.playerCampScore = Math.min(30, this.playerCampScore+1); this.playerRushScore = Math.max(0, this.playerRushScore-0.5); }
+    else if(avgDist > 80) { this.playerRushScore = Math.min(30, this.playerRushScore+1); this.playerCampScore = Math.max(0, this.playerCampScore-0.5); }
+    else { this.playerCampScore = Math.max(0, this.playerCampScore-0.3); this.playerRushScore = Math.max(0, this.playerRushScore-0.3); }
+  },
+
+  analyzeShotPattern() {
+    if(this.lastShotZones.length < 6) return;
+    const recent = this.lastShotZones.slice(-8);
+    const zoneMap = {};
+    for(const z of recent) {
+      const key = `${z.x},${z.y}`;
+      zoneMap[key] = (zoneMap[key]||0)+1;
+    }
+    const maxFreq = Math.max(...Object.values(zoneMap));
+    if(maxFreq >= 4) this.playerSpamScore = Math.min(15, this.playerSpamScore + 1.5);
+    else this.playerSpamScore = Math.max(0, this.playerSpamScore - 0.5);
+  },
+
+  update(dt) {
+    this.analysisTimer += dt;
+    this.alertCooldown -= dt;
+    if(this.analysisTimer >= this.analysisInterval) {
+      this.analysisTimer = 0;
+      this.analyzeMovement();
+      this.analyzeShotPattern();
+      this.updateBehavior();
+    }
+  },
+
+  updateBehavior() {
+    // Determine detected pattern
+    let prevPattern = this.detectedPattern;
+    if(this.playerCampScore >= this.campThreshold) { this.detectedPattern = 'CAMPING'; this.counterTactic = 'FLANK'; }
+    else if(this.playerRushScore >= this.rushThreshold) { this.detectedPattern = 'RUSHING'; this.counterTactic = 'TRAP'; }
+    else if(this.playerSpamScore >= this.spamThreshold) { this.detectedPattern = 'SPAM'; this.counterTactic = 'COUNTER'; }
+    else { this.detectedPattern = 'ADAPTIVE'; this.counterTactic = 'HUNT'; }
+
+    // Update weights based on pattern
+    if(this.detectedPattern === 'CAMPING') {
+      this.flankWeight = Math.min(1, this.flankWeight + 0.15);
+      this.trapWeight = Math.max(0, this.trapWeight - 0.05);
+      if(prevPattern !== 'CAMPING' && this.alertCooldown <= 0) {
+        addTacticMsg('⚠ CAMPING DETECTED — INITIATING FLANK', 'warn');
+        this.alertCooldown = 8;
+      }
+    } else if(this.detectedPattern === 'RUSHING') {
+      this.trapWeight = Math.min(1, this.trapWeight + 0.15);
+      this.flankWeight = Math.max(0, this.flankWeight - 0.05);
+      if(prevPattern !== 'RUSHING' && this.alertCooldown <= 0) {
+        addTacticMsg('⚠ RUSH DETECTED — LAYING TRAPS', 'warn');
+        this.alertCooldown = 8;
+        // Spawn traps
+        spawnTraps();
+      }
+    } else if(this.detectedPattern === 'SPAM') {
+      this.aggrWeight = Math.min(1, this.aggrWeight + 0.2);
+      if(prevPattern !== 'SPAM' && this.alertCooldown <= 0) {
+        addTacticMsg('⚠ PATTERN SPAM — HARD COUNTERING', 'warn');
+        this.alertCooldown = 8;
+      }
+    } else {
+      // Decay weights slowly
+      this.flankWeight = Math.max(0, this.flankWeight - 0.02);
+      this.trapWeight = Math.max(0, this.trapWeight - 0.02);
+      this.aggrWeight = Math.max(0.2, this.aggrWeight - 0.02);
+    }
+
+    // Total threat
+    const threat = (this.flankWeight + this.trapWeight + this.aggrWeight) / 3;
+    updateAIHUD(threat);
+  },
+
+  getThreatLevel() {
+    return (this.flankWeight + this.trapWeight + this.aggrWeight) / 3;
+  }
+};
+
+// ── ENEMIES ───────────────────────────────────
+const enemies = [];
+
+function spawnEnemy(forceFlank=false) {
+  // Spawn away from player
+  let x, y, tries = 0;
+  do {
+    x = 40 + Math.random() * (MAP_W-80);
+    y = 40 + Math.random() * (MAP_H-80);
+    tries++;
+  } while(tries < 20 && dist(x,y,player.x,player.y) < 300);
+
+  const isFlank = forceFlank || (Math.random() < ai.flankWeight);
+
+  enemies.push({
+    x, y,
+    size: 14,
+    speed: 120 + wave * 8 + ai.aggrWeight * 60,
+    health: 3 + Math.floor(wave/2),
+    maxHealth: 3 + Math.floor(wave/2),
+    angle: 0,
+    shotCooldown: 0,
+    shotInterval: Math.max(0.6, 1.8 - wave*0.1 - ai.aggrWeight*0.5),
+    state: 'hunt', // hunt | flank | retreat | trap_wait
+    flankAngle: Math.random() * Math.PI * 2,
+    flankTimer: 0,
+    stateTimer: 0,
+    isFlank,
+    isTrap: false,
+    color: isFlank ? '#ff6b35' : '#ff2d55',
+    alertFlash: 0,
+  });
+}
+
+function spawnWave() {
+  if(gameState !== 'playing') return;
+  const count = Math.min(2 + wave, 12); // cap at 12 enemies per wave
+  const flankCount = Math.round(ai.flankWeight * count);
+  for(let i=0; i<count; i++) spawnEnemy(i < flankCount);
+  addTacticMsg(`◈ WAVE ${wave} — ${count} ENEMIES INCOMING`, 'alert');
+}
+
+function spawnTraps() {
+  traps.length = 0; // Clear old
+  const trapCount = 3 + Math.floor(ai.trapWeight * 5);
+  // Place traps near player's likely path
+  for(let i=0; i<trapCount; i++) {
+    const ang = Math.random() * Math.PI * 2;
+    const d = 150 + Math.random() * 250;
+    const tx = player.x + Math.cos(ang)*d;
+    const ty = player.y + Math.sin(ang)*d;
+    if(tx > 30 && tx < MAP_W-30 && ty > 30 && ty < MAP_H-30) {
+      traps.push({ x:tx, y:ty, active:true, flashTimer:0 });
+    }
+  }
+}
+
+// ── ENEMY AI ──────────────────────────────────
+function updateEnemy(e, dt) {
+  e.stateTimer += dt;
+  e.shotCooldown -= dt;
+  e.alertFlash -= dt;
+
+  const dx = player.x - e.x;
+  const dy = player.y - e.y;
+  const d = Math.sqrt(dx*dx+dy*dy);
+  e.angle = Math.atan2(dy, dx);
+
+  // State machine
+  if(e.isTrap && e.state === 'trap_wait') {
+    // Stay still, wait for player to get close
+    if(d < 200) {
+      e.state = 'hunt';
+      e.isTrap = false;
+      e.alertFlash = 0.5;
+      addTacticMsg('◈ TRAP TRIGGERED!', 'warn');
+    }
+    return;
+  }
+
+  if(e.isFlank) {
+    // Flank behavior: approach from the side
+    e.flankTimer += dt;
+    const flankTargetAngle = e.angle + Math.PI * 0.65 * (e.flankAngle > Math.PI ? 1 : -1);
+    const fMoveX = Math.cos(flankTargetAngle);
+    const fMoveY = Math.sin(flankTargetAngle);
+    if(d > 200) {
+      moveEntity(e, fMoveX, fMoveY, dt);
+    } else {
+      // Close enough — switch to direct attack
+      e.isFlank = false;
+      e.alertFlash = 0.5;
+    }
+    if(e.flankTimer > 4) {
+      e.flankAngle = Math.random() * Math.PI * 2; // Recompute flank angle
+      e.flankTimer = 0;
+    }
+  } else {
+    // Direct hunt
+    if(d > 80) {
+      moveEntity(e, dx/d, dy/d, dt);
+    }
+  }
+
+  // Shooting
+  if(d < 500 && e.shotCooldown <= 0) {
+    e.shotCooldown = e.shotInterval * (0.8 + Math.random()*0.4);
+    const spread = 0.08 + (1-ai.aggrWeight)*0.05;
+    const ang = e.angle + (Math.random()-0.5)*spread;
+    enemyBullets.push({
+      x: e.x, y: e.y,
+      vx: Math.cos(ang)*500,
+      vy: Math.sin(ang)*500,
+      life: 1.5, damage: 8
+    });
+  }
+}
+
+function moveEntity(e, nx_dir, ny_dir, dt) {
+  const spd = e.speed * dt;
+  let newX = e.x + nx_dir * spd;
+  let newY = e.y + ny_dir * spd;
+  let blockX = false, blockY = false;
+  for(const w of walls) {
+    if(rectsOverlap(newX-e.size, e.y-e.size, e.size*2, e.size*2, w.x, w.y, w.w, w.h)) blockX=true;
+    if(rectsOverlap(e.x-e.size, newY-e.size, e.size*2, e.size*2, w.x, w.y, w.w, w.h)) blockY=true;
+  }
+  if(blockX) newX = e.x;
+  if(blockY) newY = e.y;
+  e.x = clamp(newX, 25, MAP_W-25);
+  e.y = clamp(newY, 25, MAP_H-25);
+}
+
+// ── COLLISION ─────────────────────────────────
+function rectsOverlap(ax,ay,aw,ah, bx,by,bw,bh) {
+  return ax<bx+bw && ax+aw>bx && ay<by+bh && ay+ah>by;
+}
+
+function dist(x1,y1,x2,y2) {
+  const dx=x2-x1, dy=y2-y1;
+  return Math.sqrt(dx*dx+dy*dy);
+}
+
+function clamp(v,lo,hi) { return Math.max(lo,Math.min(hi,v)); }
+
+// ── MAIN UPDATE ───────────────────────────────
+function update(dt) {
+  if(gameState !== 'playing') return;
+
+  // Player movement
+  let mx=0, my=0;
+  if(keys['KeyW']||keys['ArrowUp'])    my=-1;
+  if(keys['KeyS']||keys['ArrowDown'])  my=1;
+  if(keys['KeyA']||keys['ArrowLeft'])  mx=-1;
+  if(keys['KeyD']||keys['ArrowRight']) mx=1;
+  if(mx!==0&&my!==0) { mx*=0.707; my*=0.707; }
+
+  player.sprinting = keys['ShiftLeft']||keys['ShiftRight'];
+  const spd = player.speed * (player.sprinting ? 1.6 : 1) * dt;
+
+  let nx = player.x + mx * spd;
+  let ny = player.y + my * spd;
+
+  // Check X axis separately for smooth wall sliding
+  let blockX = false, blockY = false;
+  for(const w of walls) {
+    if(rectsOverlap(nx-player.size, player.y-player.size, player.size*2, player.size*2, w.x, w.y, w.w, w.h)) blockX=true;
+    if(rectsOverlap(player.x-player.size, ny-player.size, player.size*2, player.size*2, w.x, w.y, w.w, w.h)) blockY=true;
+  }
+  if(blockX) nx = player.x;
+  if(blockY) ny = player.y;
+  player.x = clamp(nx, 25, MAP_W-25);
+  player.y = clamp(ny, 25, MAP_H-25);
+
+  // Player aim — mouse relative to screen center (player is always centered)
+  player.angle = Math.atan2(mouse.y - canvas.height/2, mouse.x - canvas.width/2);
+
+  // (No explicit camera update needed — getCam() computes from player pos each frame)
+
+  // Reload
+  if(keys['KeyR'] && !player.reloading && player.ammo < player.maxAmmo) startReload();
+  if(player.reloading) {
+    player.reloadTimer += dt;
+    if(player.reloadTimer >= player.reloadTime) {
+      player.reloading = false;
+      player.ammo = player.maxAmmo;
+      document.getElementById('reloadMsg').style.display='none';
+      addTacticMsg('◈ RELOADED', '');
+      updateAmmoHUD();
+    }
+  }
+
+  // AI analysis
+  ai.update(dt);
+
+  // Record player position for AI
+  player.posTimer += dt;
+  if(player.posTimer >= player.posInterval) {
+    player.posTimer = 0;
+    ai.recordPlayerPos(player.x, player.y);
+  }
+
+  // Update bullets
+  for(let i=bullets.length-1; i>=0; i--) {
+    const b = bullets[i];
+    b.trail.push({x:b.x, y:b.y});
+    if(b.trail.length>6) b.trail.shift();
+    b.x += b.vx * dt; b.y += b.vy * dt;
+    b.life -= dt;
+    let hit = false;
+    for(const w of walls) {
+      if(b.x>w.x&&b.x<w.x+w.w&&b.y>w.y&&b.y<w.y+w.h) { hit=true; spawnParticles(b.x,b.y,'#aaa',4,60,0); break; }
+    }
+    if(hit || b.life<=0) { bullets.splice(i,1); continue; }
+    // Hit enemies
+    for(let j=enemies.length-1; j>=0; j--) {
+      const e=enemies[j];
+      if(dist(b.x,b.y,e.x,e.y)<e.size+4) {
+        e.health--;
+        spawnParticles(b.x,b.y,'#ff2d55',6,120,b.vx>0?0:Math.PI);
+        showHitMarker();
+        if(e.health<=0) {
+          spawnParticles(e.x,e.y,'#ff2d55',15,200,0);
+          spawnParticles(e.x,e.y,'#ff6b35',10,150,0);
+          score += 100 + wave*10;
+          kills++;
+          enemies.splice(j,1);
+          updateTopHUD();
+        }
+        bullets.splice(i,1);
+        hit=true; break;
+      }
+    }
+    if(hit) continue;
+  }
+
+  // Update enemy bullets
+  for(let i=enemyBullets.length-1; i>=0; i--) {
+    const b=enemyBullets[i];
+    b.x+=b.vx*dt; b.y+=b.vy*dt; b.life-=dt;
+    let hit=false;
+    for(const w of walls) {
+      if(b.x>w.x&&b.x<w.x+w.w&&b.y>w.y&&b.y<w.y+w.h) { hit=true; break; }
+    }
+    if(hit||b.life<=0) { enemyBullets.splice(i,1); continue; }
+    if(dist(b.x,b.y,player.x,player.y)<player.size+4) {
+      player.health -= b.damage;
+      enemyBullets.splice(i,1);
+      showDamage();
+      updateHealthHUD();
+      if(player.health<=0) { endGame(); return; }
+    }
+  }
+
+  // Traps
+  for(let i=traps.length-1; i>=0; i--) {
+    const t=traps[i];
+    t.flashTimer+=dt;
+    if(t.active && dist(t.x,t.y,player.x,player.y)<25) {
+      player.health -= 25;
+      traps.splice(i,1);
+      showDamage();
+      addTacticMsg('◈ TRAP! -25 HP', 'warn');
+      updateHealthHUD();
+      if(player.health<=0) { endGame(); return; }
+    }
+  }
+
+  // Update enemies
+  for(const e of enemies) updateEnemy(e, dt);
+
+  // Particles
+  for(let i=particles.length-1; i>=0; i--) {
+    const p=particles[i];
+    p.x+=p.vx*dt; p.y+=p.vy*dt;
+    p.vx*=0.9; p.vy*=0.9;
+    p.life-=dt/p.maxLife;
+    if(p.life<=0) particles.splice(i,1);
+  }
+
+  // Wave completion — guard with flag so it only triggers once
+  if(enemies.length===0 && !waveSpawning) {
+    waveSpawning = true;
+    wave++;
+    updateTopHUD();
+    addTacticMsg(`◈ WAVE CLEARED — NEMESIS ADAPTING...`, '');
+    if(ai.trapWeight > 0.3) spawnTraps();
+    setTimeout(() => { spawnWave(); waveSpawning = false; }, 2000);
+  }
+
+  drawMinimap();
+}
+
+// ── DRAW ──────────────────────────────────────
+function draw() {
+  const W=canvas.width, H=canvas.height;
+  const cam = getCam();
+  ctx.clearRect(0,0,W,H);
+  ctx.save();
+  ctx.translate(-cam.x, -cam.y);
+
+  // Full background (outside map)
+  ctx.fillStyle='#030810';
+  ctx.fillRect(cam.x - 200, cam.y - 200, W + 400, H + 400);
+
+  // Ground
+  ctx.fillStyle='#070e18';
+  ctx.fillRect(0,0,MAP_W,MAP_H);
+  // Grid
+  ctx.strokeStyle='rgba(0,255,231,0.04)';
+  ctx.lineWidth=1;
+  for(let gx=0; gx<MAP_W; gx+=80) { ctx.beginPath();ctx.moveTo(gx,0);ctx.lineTo(gx,MAP_H);ctx.stroke(); }
+  for(let gy=0; gy<MAP_H; gy+=80) { ctx.beginPath();ctx.moveTo(0,gy);ctx.lineTo(MAP_W,gy);ctx.stroke(); }
+
+  // Outer walls
+  ctx.fillStyle='#0d1f2d';
+  ctx.fillRect(0,0,MAP_W,20);
+  ctx.fillRect(0,MAP_H-20,MAP_W,20);
+  ctx.fillRect(0,0,20,MAP_H);
+  ctx.fillRect(MAP_W-20,0,20,MAP_H);
+
+  // Cover
+  for(const c of cover) {
+    ctx.fillStyle='#112233';
+    ctx.fillRect(c.x,c.y,c.w,c.h);
+    ctx.strokeStyle='rgba(0,255,231,0.15)';
+    ctx.lineWidth=1;
+    ctx.strokeRect(c.x,c.y,c.w,c.h);
+    // Top highlight
+    ctx.fillStyle='rgba(0,255,231,0.05)';
+    ctx.fillRect(c.x,c.y,c.w,4);
+  }
+
+  // Traps
+  for(const t of traps) {
+    if(!t.active) continue;
+    const pulse = Math.sin(t.flashTimer*6)*0.4+0.6;
+    ctx.save();
+    ctx.globalAlpha = pulse;
+    ctx.strokeStyle='#ffcc00';
+    ctx.lineWidth=1.5;
+    ctx.setLineDash([3,3]);
+    ctx.beginPath();
+    ctx.arc(t.x,t.y,15,0,Math.PI*2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    // Warning symbol
+    ctx.fillStyle='#ffcc00';
+    ctx.font='10px Share Tech Mono';
+    ctx.textAlign='center';
+    ctx.textBaseline='middle';
+    ctx.fillText('⚠',t.x,t.y);
+    ctx.restore();
+  }
+
+  // Enemy bullets
+  for(const b of enemyBullets) {
+    ctx.fillStyle='#ff4488';
+    ctx.shadowColor='#ff2d55';
+    ctx.shadowBlur=6;
+    ctx.beginPath(); ctx.arc(b.x,b.y,3,0,Math.PI*2); ctx.fill();
+    ctx.shadowBlur=0;
+  }
+
+  // Player bullets
+  for(const b of bullets) {
+    // Trail
+    if(b.trail.length>1) {
+      ctx.beginPath();
+      ctx.moveTo(b.trail[0].x,b.trail[0].y);
+      for(let i=1; i<b.trail.length;i++) ctx.lineTo(b.trail[i].x,b.trail[i].y);
+      ctx.strokeStyle='rgba(255,255,200,0.3)';
+      ctx.lineWidth=1;
+      ctx.stroke();
+    }
+    ctx.fillStyle='#ffffcc';
+    ctx.shadowColor='#fff';
+    ctx.shadowBlur=8;
+    ctx.beginPath(); ctx.arc(b.x,b.y,3,0,Math.PI*2); ctx.fill();
+    ctx.shadowBlur=0;
+  }
+
+  // Particles
+  for(const p of particles) {
+    ctx.globalAlpha=Math.max(0,p.life);
+    ctx.fillStyle=p.color;
+    ctx.beginPath(); ctx.arc(p.x,p.y,p.size*p.life,0,Math.PI*2); ctx.fill();
+  }
+  ctx.globalAlpha=1;
+
+  // Enemies
+  for(const e of enemies) {
+    ctx.save();
+    ctx.translate(e.x,e.y);
+
+    // Alert flash
+    if(e.alertFlash > 0) {
+      ctx.globalAlpha = Math.sin(e.alertFlash*20)*0.5+0.5;
+      ctx.fillStyle='#fff';
+      ctx.beginPath(); ctx.arc(0,0,e.size+6,0,Math.PI*2); ctx.fill();
+      ctx.globalAlpha=1;
+    }
+
+    // Shadow glow
+    ctx.shadowColor=e.color;
+    ctx.shadowBlur=15;
+
+    // Body
+    ctx.rotate(e.angle);
+    ctx.fillStyle=e.color;
+    ctx.beginPath();
+    ctx.moveTo(e.size,0);
+    ctx.lineTo(-e.size,e.size*0.8);
+    ctx.lineTo(-e.size*0.5,0);
+    ctx.lineTo(-e.size,-e.size*0.8);
+    ctx.closePath();
+    ctx.fill();
+
+    // Health bar
+    ctx.shadowBlur=0;
+    ctx.rotate(-e.angle);
+    const bhp = (e.health/e.maxHealth);
+    ctx.fillStyle='rgba(0,0,0,0.7)';
+    ctx.fillRect(-15,-e.size-8,30,4);
+    ctx.fillStyle=bhp>0.5?'#00ffe7':bhp>0.25?'#ffcc00':'#ff2d55';
+    ctx.fillRect(-15,-e.size-8,30*bhp,4);
+
+    ctx.restore();
+  }
+
+  // Player
+  ctx.save();
+  ctx.translate(player.x,player.y);
+  ctx.shadowColor='#00ffe7';
+  ctx.shadowBlur=20;
+  ctx.rotate(player.angle);
+  // Body
+  ctx.fillStyle='#00ffe7';
+  ctx.beginPath();
+  ctx.moveTo(player.size+4,0);
+  ctx.lineTo(-player.size,player.size*0.8);
+  ctx.lineTo(-player.size*0.4,0);
+  ctx.lineTo(-player.size,-player.size*0.8);
+  ctx.closePath();
+  ctx.fill();
+  // Gun barrel
+  ctx.fillStyle='#fff';
+  ctx.fillRect(player.size,  -2, 10, 4);
+  ctx.shadowBlur=0;
+  ctx.restore();
+
+  ctx.restore(); // camera
+}
+
+// ── MINIMAP ───────────────────────────────────
+function drawMinimap() {
+  const MW = 150, MH = 120;
+  const scaleX = MW / MAP_W;
+  const scaleY = MH / MAP_H;
+  mmCtx.clearRect(0,0,MW,MH);
+  mmCtx.fillStyle='rgba(0,10,20,0.95)';
+  mmCtx.fillRect(0,0,MW,MH);
+
+  // Cover
+  mmCtx.fillStyle='rgba(0,255,231,0.15)';
+  for(const c of cover) {
+    mmCtx.fillRect(c.x*scaleX, c.y*scaleY, Math.max(1,c.w*scaleX), Math.max(1,c.h*scaleY));
+  }
+
+  // Traps
+  for(const t of traps) {
+    if(!t.active) continue;
+    mmCtx.fillStyle='rgba(255,204,0,0.8)';
+    mmCtx.fillRect(t.x*scaleX-2, t.y*scaleY-2, 4, 4);
+  }
+
+  // Enemies
+  for(const e of enemies) {
+    mmCtx.fillStyle=e.isFlank?'#ff6b35':'#ff2d55';
+    mmCtx.fillRect(e.x*scaleX-2, e.y*scaleY-2, 5, 5);
+  }
+
+  // Player
+  mmCtx.fillStyle='#00ffe7';
+  mmCtx.shadowColor='#00ffe7';
+  mmCtx.shadowBlur=4;
+  mmCtx.fillRect(player.x*scaleX-3, player.y*scaleY-3, 6, 6);
+  mmCtx.shadowBlur=0;
+}
+
+// ── HUD HELPERS ───────────────────────────────
+function updateTopHUD() {
+  document.getElementById('scoreVal').textContent = score.toLocaleString();
+  document.getElementById('waveVal').textContent = wave;
+  document.getElementById('killVal').textContent = kills;
+}
+
+function updateHealthHUD() {
+  const pct = Math.max(0, player.health/player.maxHealth*100);
+  document.getElementById('healthFill').style.width = pct+'%';
+  document.getElementById('healthFill').className = 'health' + (pct<30?' low':'');
+  document.getElementById('healthVal').textContent = Math.max(0,Math.round(player.health));
+}
+
+function updateAmmoHUD() {
+  document.getElementById('ammoCount').textContent = player.ammo;
+}
+
+function showHitMarker() {
+  const hm = document.getElementById('hitMarker');
+  hm.className='show';
+  setTimeout(()=>hm.className='',200);
+}
+
+function showDamage() {
+  const dv = document.getElementById('damageVignette');
+  dv.className='show';
+  setTimeout(()=>dv.className='',500);
+}
+
+function addTacticMsg(txt, type='') {
+  const feed = document.getElementById('tacticFeed');
+  const msg = document.createElement('div');
+  msg.className = 'tactic-msg ' + type;
+  msg.textContent = txt;
+  feed.appendChild(msg);
+  // Animate in
+  setTimeout(()=>{ msg.style.opacity='1'; },10);
+  // Max 5 messages
+  while(feed.children.length>5) feed.removeChild(feed.firstChild);
+  // Auto remove after 5s
+  setTimeout(()=>{ msg.style.opacity='0'; setTimeout(()=>msg.remove(),500); },5000);
+}
+
+function updateAIHUD(threat) {
+  document.getElementById('flankBar').style.width = (ai.flankWeight*100)+'%';
+  document.getElementById('trapBar').style.width  = (ai.trapWeight*100)+'%';
+  document.getElementById('aggrBar').style.width  = (ai.aggrWeight*100)+'%';
+
+  const el = document.getElementById('aiThreatLevel');
+  const modeEl = document.getElementById('aiModeDisplay');
+
+  if(threat > 0.6) {
+    el.className='threat-high'; el.textContent='THREAT: CRITICAL';
+  } else if(threat > 0.35) {
+    el.className='threat-med'; el.textContent='THREAT: HIGH';
+  } else {
+    el.className='threat-low'; el.textContent='THREAT: LOW';
+  }
+
+  const modes = { CAMPING:'◈ FLANKING YOU', RUSHING:'◈ SETTING TRAPS', SPAM:'◈ COUNTERING TACTIC', ADAPTIVE:'◈ STUDYING YOU', NONE:'◈ LEARNING...' };
+  modeEl.textContent = modes[ai.detectedPattern] || '◈ LEARNING...';
+  const modeColors = { CAMPING:'#ff6b35', RUSHING:'#ffcc00', SPAM:'#ff2d55', ADAPTIVE:'#00ffe7', NONE:'rgba(0,255,231,0.5)' };
+  modeEl.style.color = modeColors[ai.detectedPattern] || 'rgba(0,255,231,0.5)';
+}
+
+// ── GAME FLOW ─────────────────────────────────
+function startGame() {
+  document.getElementById('startScreen').style.display='none';
+  gameState='playing';
+  initGame();
+  loop(0);
+}
+
+function initGame() {
+  score=0; kills=0; wave=1;
+  lastTime = 0;
+  waveSpawning = false;
+  player.x=MAP_W/2; player.y=MAP_H/2;
+  player.health=100; player.ammo=30;
+  player.reloading=false;
+  player.posHistory=[]; player.shotHistory=[];
+  ai.playerCampScore=0; ai.playerRushScore=0; ai.playerSpamScore=0;
+  ai.flankWeight=0; ai.trapWeight=0; ai.aggrWeight=0.2;
+  ai.detectedPattern='NONE';
+  ai.playerPosWindow=[]; ai.lastShotZones=[];
+  enemies.length=0; bullets.length=0; enemyBullets.length=0;
+  particles.length=0; traps.length=0;
+  buildMap();
+  updateTopHUD(); updateHealthHUD(); updateAmmoHUD();
+  document.getElementById('reloadMsg').style.display='none';
+  document.getElementById('aiThreatLevel').className='threat-low';
+  document.getElementById('aiThreatLevel').textContent='THREAT: LOW';
+  document.getElementById('tacticFeed').innerHTML='';
+  spawnWave();
+}
+
+function restartGame() {
+  document.getElementById('gameOver').style.display='none';
+  gameState='playing';
+  initGame();
+  loop(0);
+}
+
+function togglePause() {
+  if(gameState==='playing') {
+    gameState='paused';
+    document.getElementById('pauseScreen').style.display='flex';
+    cancelAnimationFrame(frameId);
+  } else if(gameState==='paused') {
+    gameState='playing';
+    document.getElementById('pauseScreen').style.display='none';
+    loop(performance.now());
+  }
+}
+
+function endGame() {
+  gameState='gameover';
+  cancelAnimationFrame(frameId);
+  document.getElementById('gameOver').style.display='flex';
+  document.getElementById('goScore').textContent=score.toLocaleString();
+  document.getElementById('goKills').textContent=kills;
+  document.getElementById('goWave').textContent=wave;
+  // AI analysis text
+  let analysis='';
+  if(ai.playerCampScore>10) analysis+='NEMESIS detected your camping and began flanking. ';
+  if(ai.playerRushScore>10) analysis+='Your rush tactics were countered with traps. ';
+  if(ai.playerSpamScore>5) analysis+='Pattern spam was identified and hard countered. ';
+  if(!analysis) analysis='NEMESIS was still learning your patterns. Study your tactics next time.';
+  document.getElementById('goAiAnalysis').textContent='AI ANALYSIS: '+analysis;
+}
+
+// ── LOOP ──────────────────────────────────────
+function loop(ts) {
+  if(gameState!=='playing') return;
+  if(lastTime === 0) lastTime = ts;
+  const dt = Math.min((ts-lastTime)/1000, 0.05);
+  lastTime=ts;
+  update(dt);
+  draw();
+  frameId=requestAnimationFrame(loop);
+}
+
+// init
+buildMap();
+updateAmmoHUD();
+updateHealthHUD();
+</script>
+</body>
+</html>
